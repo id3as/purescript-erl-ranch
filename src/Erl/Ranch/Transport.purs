@@ -1,6 +1,6 @@
 module Erl.Ranch.Transport
   ( fromModule
-  , Socket
+  , Socket(..)
   ) where
 
 import Prelude
