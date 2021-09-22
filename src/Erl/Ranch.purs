@@ -14,6 +14,9 @@ module Erl.Ranch
   , makeTerms
   , class OptionToErl
   , optionToErl
+  , ExcludedOptions
+  , excludeOptions
+  , defaultOptions
   ) where
 
 import Prelude
