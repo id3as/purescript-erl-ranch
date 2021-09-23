@@ -55,21 +55,21 @@ data ListenerRef :: forall k. k -> Type
 data ListenerRef ref
 
 type Options
-  = ( connectionType :: Maybe ChildType
-    , handshakeTimeout :: Maybe Timeout
-    , maxConnections :: Maybe IntOrInfinity
-    , numAcceptors :: Maybe PosInt
-    , numConnsSups :: Maybe PosInt
+  = ( connection_type :: Maybe ChildType
+    , handshake_timeout :: Maybe Timeout
+    , max_connections :: Maybe IntOrInfinity
+    , num_acceptors :: Maybe PosInt
+    , num_conns_sups :: Maybe PosInt
     , shutdown :: Maybe Timeout
     )
 
 defaultOptions :: Record Options
 defaultOptions =
-  { connectionType: Nothing
-  , handshakeTimeout: Nothing
-  , maxConnections: Nothing
-  , numAcceptors: Nothing
-  , numConnsSups: Nothing
+  { connection_type: Nothing
+  , handshake_timeout: Nothing
+  , max_connections: Nothing
+  , num_acceptors: Nothing
+  , num_conns_sups: Nothing
   , shutdown: Nothing
   }
 
