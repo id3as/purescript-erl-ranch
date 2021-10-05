@@ -1,5 +1,6 @@
 module Erl.Ranch
   ( startListener
+  , startListenerPassive
   , stopListener
   , Options
   , TransportConfig(..)
@@ -7,7 +8,9 @@ module Erl.Ranch
   , ListenerRef
   , HandlerResult(..)
   , HandlerFn
-  , defaultHandler
+  , PassiveHandlerFn
+  , GenericHandlerFn
+  --, defaultHandler
   , start_link
   , class OptionsToErl
   , optionsToErl
@@ -20,13 +23,13 @@ module Erl.Ranch
   ) where
 
 import Prelude
-
 import ConvertableOptions (class ConvertOption, class ConvertOptionsWithDefaults, convertOptionsWithDefaults)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), maybe)
 import Data.Symbol (class IsSymbol)
+import Data.Tuple (Tuple(..))
 import Effect (Effect)
-import Effect.Class (liftEffect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn3, mkEffectFn3)
 import Erl.Atom (Atom, atom)
@@ -36,15 +39,17 @@ import Erl.Data.List (List)
 import Erl.Data.Map (Map)
 import Erl.Data.Map as Map
 import Erl.Data.Tuple (Tuple2, tuple2)
-import Erl.Kernel.Inet (ActiveSocket, SocketActive, SocketDeliver)
+import Erl.Kernel.Inet (ActiveSocket, CanGenerateMessages, CannotGenerateMessages, SocketActive, SocketDeliver)
 import Erl.Kernel.Inet as Inet
-import Erl.Kernel.Tcp (SocketPacket)
+import Erl.Kernel.Tcp (SocketPacket, TcpMessage)
 import Erl.Kernel.Tcp as Tcp
 import Erl.Otp.Types.Stdlib (ChildType)
+import Erl.Process (class ReceivesMessage)
 import Erl.Process.Raw (Pid)
 import Erl.Ranch.Transport (fromModule, Socket)
 import Erl.Ssl as Ssl
 import Erl.Types (class ToErl, IntOrInfinity, NonNegInt, PosInt, Timeout, toErl)
+import Erl.Untagged.Union (class IsSupportedMessage)
 import Foreign (Foreign, unsafeToForeign)
 import Prim.Row as Row
 import Prim.RowList as RL
@@ -84,13 +89,36 @@ data HandlerResult
 
 type HandlerFn :: forall k. k -> Type
 type HandlerFn ref
-  = ListenerRef ref -> (Unit -> Effect (Socket ActiveSocket)) -> Effect HandlerResult
+  = ListenerRef ref ->
+    ( forall m msg.
+      MonadEffect m =>
+      ReceivesMessage m msg =>
+      IsSupportedMessage TcpMessage msg =>
+      Unit -> m (Socket CanGenerateMessages ActiveSocket)
+    ) ->
+    Effect HandlerResult
+
+type PassiveHandlerFn :: forall k. k -> Type
+type PassiveHandlerFn ref
+  = ListenerRef ref -> (Unit -> Effect (Socket CannotGenerateMessages ActiveSocket)) -> Effect HandlerResult
+
+data GenericHandlerFn :: forall k. k -> Type
+data GenericHandlerFn ref
+  = Active (HandlerFn ref)
+  | Passive (PassiveHandlerFn ref)
 
 type ListenerConfiguration ref options
   = { ref :: ref
     , options :: options
     , transport :: TransportConfig
     , handler :: HandlerFn ref
+    }
+
+type PassiveListenerConfiguration ref options
+  = { ref :: ref
+    , options :: options
+    , transport :: TransportConfig
+    , handler :: PassiveHandlerFn ref
     }
 
 type ExcludedOptions r
@@ -143,6 +171,24 @@ startListener ::
   ListenerConfiguration ref options -> Effect (Either Foreign (ListenerRef ref))
 startListener { ref, transport, options, handler } = do
   let
+    Tuple mod finalOptions = startListenerOpts transport options
+  startListenerImpl Left Right (unsafeToForeign ref) mod finalOptions (Active handler)
+
+startListenerPassive ::
+  forall ref options.
+  ConvertOptionsWithDefaults OptionToMaybe (Record Options) options (Record Options) =>
+  PassiveListenerConfiguration ref options -> Effect (Either Foreign (ListenerRef ref))
+startListenerPassive { ref, transport, options, handler } = do
+  let
+    Tuple mod finalOptions = startListenerOpts transport options
+  startListenerImpl Left Right (unsafeToForeign ref) mod finalOptions (Passive handler)
+
+startListenerOpts ::
+  forall options.
+  ConvertOptionsWithDefaults OptionToMaybe (Record Options) options (Record Options) =>
+  TransportConfig -> options -> Tuple Atom Foreign
+startListenerOpts transport options = do
+  let
     socketOptions = case transport of
       RanchTcp tcpOpts -> do
         Inet.optionsToErl $ excludeOptions $ tcpOpts
@@ -157,7 +203,7 @@ startListener { ref, transport, options, handler } = do
     mod = case transport of
       RanchTcp _ -> atom "ranch_tcp"
       RanchSsl _ -> atom "ranch_ssl"
-  startListenerImpl Left Right (unsafeToForeign ref) mod finalOptions handler
+  Tuple mod finalOptions
 
 foreign import stopListener :: Atom -> Effect Unit
 
@@ -168,37 +214,51 @@ foreign import startListenerImpl ::
   Foreign ->
   Atom ->
   Foreign ->
-  HandlerFn ref ->
+  GenericHandlerFn ref ->
   Effect (Either Foreign (ListenerRef ref))
 
 start_link ::
   forall ref.
-  EffectFn3 (ListenerRef ref) Atom (HandlerFn ref) (Tuple2 Atom Foreign)
+  EffectFn3 (ListenerRef ref) Atom (GenericHandlerFn ref) (Tuple2 Atom Foreign)
 start_link = mkEffectFn3 startLink
   where
   startLink ref transportModule handler = do
-    handlerRes <- handler ref handshake
+    handlerRes <- case handler of
+      Active handler -> handler ref handshake
+      Passive handler -> handler ref handshakePassive
     pure
       $ case handlerRes of
           HandlerOk pid -> tuple2 (atom "ok") (unsafeToForeign pid)
           HandlerError reason -> tuple2 (atom "error") (unsafeToForeign reason)
     where
+    handshake ::
+      forall m msg.
+      MonadEffect m =>
+      ReceivesMessage m msg =>
+      IsSupportedMessage TcpMessage msg =>
+      Unit -> m (Socket CanGenerateMessages ActiveSocket)
     handshake _ = do
+      socket <- liftEffect $ handshakeImpl ref
+      let
+        transport = fromModule transportModule socket
+      maybe (liftEffect $ throw "Erl.Ranch: unexpected transport") pure transport
+    handshakePassive _ = do
       socket <- handshakeImpl ref
       let
         transport = fromModule transportModule socket
       maybe (throw "Erl.Ranch: unexpected transport") pure transport
 
+{-
 defaultHandler ::
-  forall ref. 
-  (ListenerRef ref -> Socket ActiveSocket -> Effect Unit) -> (HandlerFn ref)
+  forall ref socketMessages.
+  (ListenerRef ref -> Socket socketMessages ActiveSocket -> Effect Unit) -> (HandlerFn ref socketMessages)
 defaultHandler handlerFn = \ref handshake -> do
   let
     defaultInit = do
       transport <- liftEffect $ handshake unit
       handlerFn ref transport
   spawnDefaultHandlerImpl defaultInit
-
+-}
 foreign import handshakeImpl :: forall ref. ListenerRef ref -> Effect Foreign
 
 foreign import spawnDefaultHandlerImpl :: forall m. m Unit -> Effect HandlerResult
