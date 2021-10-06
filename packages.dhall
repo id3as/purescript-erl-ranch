@@ -36,7 +36,7 @@ in upstream
       , "erl-lists"
       , "erl-process"
       , "erl-tuples"
-      , "erl-untagged"
+      , "erl-untagged-union"
       , "foldable-traversable"
       , "foreign"
       , "functions"
