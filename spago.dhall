@@ -15,11 +15,13 @@ You can edit this file as you like.
   , "erl-process"
   , "erl-ssl"
   , "erl-tuples"
+  , "erl-untagged-union"
   , "exceptions"
   , "foreign"
   , "maybe"
   , "prelude"
   , "record"
+  , "tuples"
   , "typelevel-prelude"
   , "unsafe-coerce"
   ]
