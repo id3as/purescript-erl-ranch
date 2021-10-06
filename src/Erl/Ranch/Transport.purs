@@ -6,18 +6,22 @@ module Erl.Ranch.Transport
 import Prelude
 import Data.Maybe (Maybe(..))
 import Erl.Atom (Atom, atom)
-import Erl.Kernel.Inet (ActiveSocket, close, recv, send)
+import Erl.Kernel.Inet (ConnectedSocket, close, recv, send)
 import Erl.Kernel.Inet as Inet
 import Erl.Kernel.Tcp (TcpSocket)
 import Erl.Ssl (SslSocket)
 import Foreign (Foreign)
 import Unsafe.Coerce (unsafeCoerce)
 
-data Socket socketMessages socketType
-  = Tcp (TcpSocket socketMessages socketType)
-  | Ssl (SslSocket socketType)
+data Socket socketMessageBehaviour socketType
+  = Tcp (TcpSocket socketMessageBehaviour socketType)
+  | Ssl (SslSocket socketMessageBehaviour socketType)
 
-instance (Inet.Socket (TcpSocket socketMessages)) => Inet.Socket (Socket socketMessages) where
+instance
+  ( Inet.Socket (TcpSocket socketMessageBehaviour)
+  , Inet.Socket (SslSocket socketMessageBehaviour)
+  ) =>
+  Inet.Socket (Socket socketMessageBehaviour) where
   send = case _ of
     Tcp s -> send s
     Ssl s -> send s
@@ -28,7 +32,7 @@ instance (Inet.Socket (TcpSocket socketMessages)) => Inet.Socket (Socket socketM
     Tcp s -> close s
     Ssl s -> close s
 
-fromModule :: forall socketMessages. Atom -> Foreign -> Maybe (Socket socketMessages ActiveSocket)
+fromModule :: forall socketMessageBehaviour. Atom -> Foreign -> Maybe (Socket socketMessageBehaviour ConnectedSocket)
 fromModule moduleAtom socket =
   if moduleAtom == atom "ranch_tcp" then
     Just $ Tcp (unsafeCoerce socket)
