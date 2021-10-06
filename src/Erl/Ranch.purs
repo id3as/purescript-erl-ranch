@@ -23,6 +23,7 @@ module Erl.Ranch
   ) where
 
 import Prelude
+
 import ConvertableOptions (class ConvertOption, class ConvertOptionsWithDefaults, convertOptionsWithDefaults)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), maybe)
@@ -224,8 +225,8 @@ start_link = mkEffectFn3 startLink
   where
   startLink ref transportModule handler = do
     handlerRes <- case handler of
-      Active handler -> handler ref handshake
-      Passive handler -> handler ref handshakePassive
+      Active handler' -> handler' ref handshake
+      Passive handler' -> handler' ref handshakePassive
     pure
       $ case handlerRes of
           HandlerOk pid -> tuple2 (atom "ok") (unsafeToForeign pid)
