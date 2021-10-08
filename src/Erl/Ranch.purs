@@ -34,7 +34,7 @@ import Erl.Data.List (List)
 import Erl.Data.Map (Map)
 import Erl.Data.Map as Map
 import Erl.Data.Tuple (Tuple2, tuple2)
-import Erl.Kernel.Inet (ConnectedSocket, PassiveSocket, SocketActive, SocketDeliver)
+import Erl.Kernel.Inet (ConnectedSocket, PassiveSocket, SocketActive)
 import Erl.Kernel.Inet as Inet
 import Erl.Kernel.Tcp (SocketPacket)
 import Erl.Kernel.Tcp as Tcp
@@ -93,7 +93,6 @@ type ListenerConfiguration ref options
 
 type ExcludedOptions r
   = ( active :: Maybe SocketActive
-    , deliver :: Maybe SocketDeliver
     , header :: Maybe NonNegInt
     , reuseaddr :: Maybe Boolean
     , tclass :: Maybe NonNegInt
@@ -113,7 +112,6 @@ excludeOptions ::
 excludeOptions r =
   r
     { active = Nothing
-    , deliver = Nothing
     , header = Nothing
     , reuseaddr = Nothing
     , tclass = Nothing

@@ -49,7 +49,7 @@ in upstream
       , "typelevel-prelude"
       , "unsafe-coerce"
       ]
-    , version = "a440c661d1f7dedc95b8d52986fec354ddd805a0"
+    , version = "8969ab236178c3c861cf90fd55c537caa2584a9e"
     }
   with unsafe-reference =
     { repo = "https://github.com/purerl/purescript-unsafe-reference.git"
@@ -66,7 +66,7 @@ in upstream
       , "prelude"
       , "unsafe-reference"
       ]
-      , version = "dad9e77458013bdd16d1cad49e6fce702df57f65"
+      , version = "6470bc379447c406456e8ef1e6a79c80e3c5e8d1"
     }
   with erl-ssl = 
     { repo = "https://github.com/id3as/purescript-erl-ssl.git"
@@ -90,5 +90,5 @@ in upstream
       , "record"
       , "unsafe-reference"
       ]
-      , version = "64d34d8b478952ac687f7b0883a62506783bc342"
+      , version = "9d8a9d0fb0e50d72fbae2f733c5a638ece2055ea"
     }
