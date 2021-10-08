@@ -18,10 +18,10 @@ data Socket socketMessageBehaviour socketType
   | Ssl (SslSocket socketMessageBehaviour socketType)
 
 instance
-  ( Inet.Socket (TcpSocket socketMessageBehaviour)
-  , Inet.Socket (SslSocket socketMessageBehaviour)
+  ( Inet.Socket (TcpSocket socketMessageBehaviour socketType)
+  , Inet.Socket (SslSocket socketMessageBehaviour socketType)
   ) =>
-  Inet.Socket (Socket socketMessageBehaviour) where
+  Inet.Socket (Socket socketMessageBehaviour socketType) where
   send = case _ of
     Tcp s -> send s
     Ssl s -> send s
